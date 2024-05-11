@@ -273,11 +273,7 @@ class PickSequentialTaskEnv(SequentialTaskEnv):
     def _get_obs_state_dict(self, info: Dict):
         state_dict = super()._get_obs_state_dict(info)
 
-        # NOTE (arth): this is a bug which causes nothing to be deleted
-        # for now leave as-is since it's not worth retraining the whole policy
-        extra_state_dict_keys = list(
-            state_dict["extra"]
-        )  # should be state_dict["extra"].keys()
+        extra_state_dict_keys = list(state_dict["extra"].keys())
         for key in extra_state_dict_keys:
             if key not in PICK_OBS_EXTRA_KEYS:
                 state_dict["extra"].pop(key, None)

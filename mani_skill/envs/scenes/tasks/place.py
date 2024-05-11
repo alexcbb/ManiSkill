@@ -360,7 +360,7 @@ class PlaceSequentialTaskEnv(SequentialTaskEnv):
     def _get_obs_state_dict(self, info: Dict):
         state_dict = super()._get_obs_state_dict(info)
 
-        extra_state_dict_keys = list(state_dict["extra"])
+        extra_state_dict_keys = list(state_dict["extra"].keys())
         for key in extra_state_dict_keys:
             if key not in PLACE_OBS_EXTRA_KEYS:
                 state_dict["extra"].pop(key, None)
