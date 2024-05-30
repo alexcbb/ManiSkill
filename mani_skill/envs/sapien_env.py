@@ -1086,7 +1086,7 @@ class BaseEnv(gym.Env):
         for obj in self._hidden_objects:
             obj.hide_visual()
         return images
-    def render_rgb_array(self, camera_name: str = None):
+    def render_rgb_array(self, camera_name: str = None) -> torch.Tensor:
         """Returns an RGB array / image of size (num_envs, H, W, 3) of the current state of the environment.
         This is captured by any of the registered human render cameras. If a camera_name is given, only data from that camera is returned.
         Otherwise all camera data is captured and returned as a single batched image"""
@@ -1095,7 +1095,7 @@ class BaseEnv(gym.Env):
         if len(images) == 1: return images[0]
         return tile_images(self._render_rgb_array(camera_name))
 
-    def _render_sensors(self):
+    def _render_sensors(self) -> torch.Tensor:
         for obj in self._hidden_objects:
             obj.hide_visual()
         images = []
@@ -1105,13 +1105,13 @@ class BaseEnv(gym.Env):
         for image in sensor_images.values():
             images.append(image)
         return images
-    def render_sensors(self):
+    def render_sensors(self) -> torch.Tensor:
         """
         Renders all sensors that the agent can use and see and displays them
         """
         return tile_images(self._render_sensors())
 
-    def render_all(self):
+    def render_all(self) -> torch.Tensor:
         """
         Render all human render cameras and sensors
         """
