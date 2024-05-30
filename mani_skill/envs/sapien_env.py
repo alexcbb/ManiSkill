@@ -2,7 +2,7 @@ import copy
 import gc
 import os
 from functools import cached_property
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import dacite
 import gymnasium as gym
@@ -97,9 +97,16 @@ class BaseEnv(gym.Env):
     setting robot_uids auto loads all desired robots into the scene, but not all tasks are designed to support some robot setups"""
     SUPPORTED_OBS_MODES = ("state", "state_dict", "none", "sensor_data", "rgb", "rgbd", "pointcloud")
     SUPPORTED_REWARD_MODES = ("normalized_dense", "dense", "sparse", "none")
-    SUPPORTED_RENDER_MODES = ("human", "rgb_array", "sensors")
-    """The supported render modes. Human opens up a GUI viewer. rgb_array returns an rgb array showing the current environment state.
-    sensors returns an rgb array but only showing all data collected by sensors as images put together"""
+    SUPPORTED_RENDER_MODES = ("human", "rgb_array", "sensors", "all")
+    """The supported render modes.
+
+    "human" opens up a GUI viewer.
+
+    "rgb_array" returns an rgb array showing the current environment state (the result of registered human_render_cameras).
+
+    "sensors" returns an rgb array but only showing all data collected by sensors as images put together.
+
+    "all" returns an rgb array showing the result of all cameras/sensors (human_render_cameras and sensors) put together."""
 
     metadata = {"render_modes": SUPPORTED_RENDER_MODES}
 
@@ -1049,10 +1056,7 @@ class BaseEnv(gym.Env):
             obj.hide_visual()
         return self._viewer
 
-    def render_rgb_array(self, camera_name: str = None):
-        """Returns an RGB array / image of size (num_envs, H, W, 3) of the current state of the environment.
-        This is captured by any of the registered human render cameras. If a camera_name is given, only data from that camera is returned.
-        Otherwise all camera data is captured and returned as a single batched image"""
+    def _render_rgb_array(self, camera_name: Optional[str] = None):
         for obj in self._hidden_objects:
             obj.show_visual()
         self.scene.update_render()
@@ -1075,18 +1079,23 @@ class BaseEnv(gym.Env):
                 else:
                     rgb = (camera.get_picture("Color")[..., :3] * 255).to(torch.uint8)
                 images.append(rgb)
-        if len(images) == 0:
-            return None
-        if len(images) == 1:
-            return images[0]
+        # if len(images) == 0:
+        #     return None
+        # if len(images) == 1:
+        #     return images[0]
         for obj in self._hidden_objects:
             obj.hide_visual()
-        return tile_images(images)
+        return images
+    def render_rgb_array(self, camera_name: str = None):
+        """Returns an RGB array / image of size (num_envs, H, W, 3) of the current state of the environment.
+        This is captured by any of the registered human render cameras. If a camera_name is given, only data from that camera is returned.
+        Otherwise all camera data is captured and returned as a single batched image"""
+        images = self._render_rgb_array(camera_name)
+        if len(images) == 0: return None
+        if len(images) == 1: return images[0]
+        return tile_images(self._render_rgb_array(camera_name))
 
-    def render_sensors(self):
-        """
-        Renders all sensors that the agent can use and see and displays them
-        """
+    def _render_sensors(self):
         for obj in self._hidden_objects:
             obj.hide_visual()
         images = []
@@ -1095,7 +1104,20 @@ class BaseEnv(gym.Env):
         sensor_images = self.get_sensor_images()
         for image in sensor_images.values():
             images.append(image)
-        return tile_images(images)
+        return images
+    def render_sensors(self):
+        """
+        Renders all sensors that the agent can use and see and displays them
+        """
+        return tile_images(self._render_sensors())
+
+    def render_all(self):
+        """
+        Render all human render cameras and sensors
+        """
+        human_render_images = self._render_rgb_array()
+        sensor_images = self._render_sensors()
+        return tile_images(human_render_images + sensor_images)
 
     def render(self):
         """
@@ -1110,11 +1132,11 @@ class BaseEnv(gym.Env):
         if self.render_mode == "human":
             return self.render_human()
         elif self.render_mode == "rgb_array":
-            res = self.render_rgb_array()
-            return res
+            return self.render_rgb_array()
         elif self.render_mode == "sensors":
-            res = self.render_sensors()
-            return res
+            return self.render_sensors()
+        elif self.render_mode == "all":
+            return self.render_all()
         else:
             raise NotImplementedError(f"Unsupported render mode {self.render_mode}.")
 

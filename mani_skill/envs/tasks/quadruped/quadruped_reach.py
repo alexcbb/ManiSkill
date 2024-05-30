@@ -86,14 +86,23 @@ class QuadrupedReachEnv(BaseEnv):
             xyz[:, 0] = 2.5
             noise_scale = 1
             xyz[:, 0] = torch.rand(size=(b,)) * noise_scale - noise_scale / 2 + 2.5
+            noise_scale = 2
             xyz[:, 1] = torch.rand(size=(b,)) * noise_scale - noise_scale / 2
             self.goal.set_pose(Pose.create_from_pq(xyz))
 
     def evaluate(self):
         is_fallen = self.agent.is_fallen()
-        robot_to_goal_dist = torch.linalg.norm(
-            self.goal.pose.p[:, :2] - self.agent.robot.pose.p[:, :2], axis=1
+        goal_angle = torch.atan2(self.goal.pose.p[:, 1], self.goal.pose.p[:, 0])
+        pos_in_front_of_goal = (
+            self.goal.pose.p[:, :2]
+            - torch.vstack([torch.cos(goal_angle) * 0.4, torch.sin(goal_angle) * 0.4]).T
         )
+        robot_to_goal_dist = torch.linalg.norm(
+            pos_in_front_of_goal - self.agent.robot.pose.p[:, :2], axis=1
+        )
+        # actual goal is in front of the green goal site in direction to the origin (where the agent starts at).
+        # This is so vision based policies can succeed since they cannot see the goal site if they are on top of it
+
         reached_goal = robot_to_goal_dist < 0.35
         return {
             "success": reached_goal & ~is_fallen,
