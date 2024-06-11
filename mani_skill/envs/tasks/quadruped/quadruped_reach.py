@@ -119,7 +119,6 @@ class QuadrupedReachEnv(BaseEnv):
         )
         if self.obs_mode in ["state", "state_dict"]:
             obs.update(
-                goal_pos=self.goal.pose.p[:, :2],
                 robot_to_goal=self.goal.pose.p[:, :2] - self.agent.robot.pose.p[:, :2],
             )
         return obs

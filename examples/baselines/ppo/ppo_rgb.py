@@ -151,87 +151,96 @@ class DictArray(object):
         new_buffer_shape = next(iter(new_dict.values())).shape[:len(shape)]
         return DictArray(new_buffer_shape, None, data_dict=new_dict)
 
-class NatureCNN(nn.Module):
-    def __init__(self, sample_obs):
+def make_mlp(in_channels, mlp_channels, act_builder=nn.ReLU, last_act=True):
+    c_in = in_channels
+    module_list = []
+    for idx, c_out in enumerate(mlp_channels):
+        module_list.append(nn.Linear(c_in, c_out))
+        if last_act or idx < len(mlp_channels) - 1:
+            module_list.append(act_builder())
+        c_in = c_out
+    return nn.Sequential(*module_list)
+
+class PlainConv(nn.Module):
+    def __init__(self,
+                 in_channels=3,
+                 out_dim=256,
+                 pool_feature_map=False,
+                 last_act=True, # True for ConvBody, False for CNN
+                 ):
         super().__init__()
+        # assume input image size is 64x64
 
-        extractors = {}
-
-        self.out_features = 0
-        feature_size = 256
-        in_channels=sample_obs["rgb"].shape[-1]
-        image_size=(sample_obs["rgb"].shape[1], sample_obs["rgb"].shape[2])
-        state_size=sample_obs["state"].shape[-1]
-
-        # here we use a NatureCNN architecture to process images, but any architecture is permissble here
-        cnn = nn.Sequential(
-            nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=32,
-                kernel_size=8,
-                stride=4,
-                padding=0,
-            ),
-            nn.ReLU(),
-            nn.Conv2d(
-                in_channels=32, out_channels=64, kernel_size=4, stride=2, padding=0
-            ),
-            nn.ReLU(),
-            nn.Conv2d(
-                in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0
-            ),
-            nn.ReLU(),
-            nn.Flatten(),
+        self.out_dim = out_dim
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels, 16, 3, padding=1, bias=True), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [32, 32]
+            nn.Conv2d(16, 32, 3, padding=1, bias=True), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [16, 16]
+            nn.Conv2d(32, 64, 3, padding=1, bias=True), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [8, 8]
+            nn.Conv2d(64, 128, 3, padding=1, bias=True), nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),  # [4, 4]
+            nn.Conv2d(128, 128, 1, padding=0, bias=True), nn.ReLU(inplace=True),
         )
 
-        # to easily figure out the dimensions after flattening, we pass a test tensor
-        with torch.no_grad():
-            n_flatten = cnn(sample_obs["rgb"].float().permute(0,3,1,2).cpu()).shape[1]
-            fc = nn.Sequential(nn.Linear(n_flatten, feature_size), nn.ReLU())
-        extractors["rgb"] = nn.Sequential(cnn, fc)
-        self.out_features += feature_size
+        if pool_feature_map:
+            self.pool = nn.AdaptiveMaxPool2d((1, 1))
+            self.fc = make_mlp(128, [out_dim], last_act=last_act)
+        else:
+            self.pool = None
+            self.fc = make_mlp(128 * 4 * 4, [out_dim], last_act=last_act)
 
-        # for state data we simply pass it through a single linear layer
-        extractors["state"] = nn.Linear(state_size, 256)
-        self.out_features += 256
+        self.reset_parameters()
 
-        self.extractors = nn.ModuleDict(extractors)
+    def reset_parameters(self):
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv1d, nn.Conv2d)):
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
-    def forward(self, observations) -> torch.Tensor:
-        encoded_tensor_list = []
-        # self.extractors contain nn.Modules that do all the processing.
-        for key, extractor in self.extractors.items():
-            obs = observations[key]
-            if key == "rgb":
-                obs = obs.float().permute(0,3,1,2)
-                obs = obs / 255
-            encoded_tensor_list.append(extractor(obs))
-        return torch.cat(encoded_tensor_list, dim=1)
+    def forward(self, image: torch.Tensor):
+        x = self.cnn(image)
+        if self.pool is not None:
+            x = self.pool(x)
+        x = x.flatten(1)
+        x = self.fc(x)
+        return x
 
 class Agent(nn.Module):
     def __init__(self, envs, sample_obs):
         super().__init__()
-        self.feature_net = NatureCNN(sample_obs=sample_obs)
+        # self.feature_net = NatureCNN(sample_obs=sample_obs)
         # latent_size = np.array(envs.unwrapped.single_observation_space.shape).prod()
-        latent_size = self.feature_net.out_features
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(latent_size, 512)),
-            nn.ReLU(inplace=True),
-            layer_init(nn.Linear(512, 1)),
-        )
-        self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(latent_size, 512)),
-            nn.ReLU(inplace=True),
-            layer_init(nn.Linear(512, np.prod(envs.unwrapped.single_action_space.shape)), std=0.01*np.sqrt(2)),
-        )
-        self.actor_logstd = nn.Parameter(torch.ones(1, np.prod(envs.unwrapped.single_action_space.shape)) * -0.5)
-    def get_features(self, x):
-        return self.feature_net(x)
+        self.encoder = PlainConv(in_channels=4, out_dim=256)
+        latent_size = self.encoder.out_dim
+        state_dim = envs.single_observation_space['state'].shape[0]
+        # self.critic = nn.Sequential(
+        #     layer_init(nn.Linear(latent_size + state_dim, 512)),
+        #     nn.ReLU(inplace=True),
+        #     layer_init(nn.Linear(512, 1)),
+        # )
+        # self.actor_mean = nn.Sequential(
+        #     layer_init(nn.Linear(latent_size + state_dim, 512)),
+        #     nn.ReLU(inplace=True),
+        #     layer_init(nn.Linear(512, np.prod(envs.unwrapped.single_action_space.shape)), std=0.01*np.sqrt(2)),
+        # )
+        action_dim = np.prod(envs.unwrapped.single_action_space.shape)
+        self.critic = make_mlp(latent_size+state_dim, [512, 256, 1], last_act=False)
+        self.actor_mean = make_mlp(latent_size+state_dim, [512, 256, action_dim], last_act=False)
+        self.actor_logstd = nn.Parameter(torch.ones(1, action_dim) * -0.5)
+    def get_features(self, obs):
+        rgb = obs['rgb'].float() / 255.0 # (B, H, W, 3*k)
+        depth = obs['depth'].float() / 1000.0 # (B, H, W, 1*k)
+        img = torch.cat([rgb, depth], dim=3) # (B, H, W, C)
+        img = img.permute(0, 3, 1, 2) # (B, C, H, W)
+        feature = self.encoder(img)
+        return torch.cat([feature, obs['state']], dim=1)
     def get_value(self, x):
-        x = self.feature_net(x)
+        x = self.get_features(x)
         return self.critic(x)
     def get_action(self, x, deterministic=False):
-        x = self.feature_net(x)
+        x = self.get_features(x)
         action_mean = self.actor_mean(x)
         if deterministic:
             return action_mean
@@ -240,7 +249,7 @@ class Agent(nn.Module):
         probs = Normal(action_mean, action_std)
         return probs.sample()
     def get_action_and_value(self, x, action=None):
-        x = self.feature_net(x)
+        x = self.get_features(x)
         action_mean = self.actor_mean(x)
         action_logstd = self.actor_logstd.expand_as(action_mean)
         action_std = torch.exp(action_logstd)
@@ -292,13 +301,13 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
-    env_kwargs = dict(obs_mode="rgbd", control_mode="pd_joint_delta_pos", render_mode="all", sim_backend="gpu")
+    env_kwargs = dict(obs_mode="rgbd", control_mode="pd_joint_delta_pos", render_mode="all", sim_backend="gpu", sensor_configs=dict(width=64, height=64))
     eval_envs = gym.make(args.env_id, num_envs=args.num_eval_envs, **env_kwargs)
     envs = gym.make(args.env_id, num_envs=args.num_envs if not args.evaluate else 1, **env_kwargs)
 
     # rgbd obs mode returns a dict of data, we flatten it so there is just a rgbd key and state key
-    envs = FlattenRGBDObservationWrapper(envs, rgb_only=True)
-    eval_envs = FlattenRGBDObservationWrapper(eval_envs, rgb_only=True)
+    envs = FlattenRGBDObservationWrapper(envs, rgb_only=False)
+    eval_envs = FlattenRGBDObservationWrapper(eval_envs, rgb_only=False)
 
     if isinstance(envs.action_space, gym.spaces.Dict):
         envs = FlattenActionSpaceWrapper(envs)

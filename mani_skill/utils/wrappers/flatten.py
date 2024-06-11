@@ -13,31 +13,28 @@ from mani_skill.utils import common
 
 class FlattenRGBDObservationWrapper(gym.ObservationWrapper):
     """
-    Flattens the rgbd mode observations into a dictionary with two keys, "rgbd" and "state"
+    Flattens the rgbd mode observations into a dictionary with three keys: "state", "rgb", and "depth"
     """
 
-    def __init__(self, env, rgb_only=False) -> None:
+    def __init__(self, env) -> None:
         self.base_env: BaseEnv = env.unwrapped
         super().__init__(env)
-        self.rgb_only = rgb_only
         new_obs = self.observation(self.base_env._init_raw_obs)
         self.base_env.update_obs_space(new_obs)
 
     def observation(self, observation: Dict):
         sensor_data = observation.pop("sensor_data")
         del observation["sensor_param"]
-        images = []
+        rgbs = []
+        depths = []
         for cam_data in sensor_data.values():
-            images.append(cam_data["rgb"])
-            if not self.rgb_only:
-                images.append(cam_data["depth"])
-        images = torch.concat(images, axis=-1)
+            rgbs.append(cam_data["rgb"])
+            depths.append(cam_data["depth"])
+        rgbs = torch.concat(rgbs, axis=-1)
+        depths = torch.concat(depths, axis=-1)
         # flatten the rest of the data which should just be state data
         observation = common.flatten_state_dict(observation, use_torch=True)
-        if self.rgb_only:
-            return dict(state=observation, rgb=images)
-        else:
-            return dict(state=observation, rgbd=images)
+        return dict(state=observation, rgb=rgbs, depth=depths)
 
 
 class FlattenObservationWrapper(gym.ObservationWrapper):
