@@ -110,10 +110,7 @@ python ppo_rgb.py --env_id="PickSingleYCB-v1" \
   --num_envs=256 --update_epochs=8 --num_minibatches=8 \
   --total_timesteps=10_000_000
 
-python ppo_rgb.py --env_id="AnymalC-Reach-v1" \
-  --num_envs=128 --update_epochs=8 --num_minibatches=8 \
-  --total_timesteps=50_000_000 --num-steps=200 --num-eval-steps=200 \
-  --gamma=0.99 --gae_lambda=0.95 --target-kl=0.15
+python ppo_rgb.py --env_id="AnymalC-Reach-v1"   --num_envs=128 --update_epochs=8 --num_minibatches=8   --total_timesteps=500_000_000 --num-steps=40 --num-eval-steps=200   --gamma=0.99 --gae-lambda=0.95 --target-kl=0.05
 ```
 
 To evaluate a trained policy you can run

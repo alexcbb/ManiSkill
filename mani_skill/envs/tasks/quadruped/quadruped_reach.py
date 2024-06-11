@@ -6,9 +6,10 @@ import torch
 from mani_skill.agents.robots.anymal.anymal_c import ANYmalC
 from mani_skill.envs.sapien_env import BaseEnv
 from mani_skill.sensors.camera import CameraConfig
-from mani_skill.utils import sapien_utils
+from mani_skill.utils import common, sapien_utils
 from mani_skill.utils.building import actors
 from mani_skill.utils.building.ground import build_ground
+from mani_skill.utils.geometry import rotation_conversions
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SceneConfig, SimConfig
@@ -75,6 +76,10 @@ class QuadrupedReachEnv(BaseEnv):
             body_type="kinematic",
         )
 
+        self.flat_orientation_q = torch.tensor(
+            [1, 0, 0, 0], dtype=torch.float32, device=self.device
+        )[None, :].repeat(self.num_envs, 1)
+
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         with torch.device(self.device):
             b = len(env_idx)
@@ -86,7 +91,7 @@ class QuadrupedReachEnv(BaseEnv):
             xyz[:, 0] = 2.5
             noise_scale = 1
             xyz[:, 0] = torch.rand(size=(b,)) * noise_scale - noise_scale / 2 + 2.5
-            noise_scale = 2
+            noise_scale = 3
             xyz[:, 1] = torch.rand(size=(b,)) * noise_scale - noise_scale / 2
             self.goal.set_pose(Pose.create_from_pq(xyz))
 
@@ -103,7 +108,7 @@ class QuadrupedReachEnv(BaseEnv):
         # actual goal is in front of the green goal site in direction to the origin (where the agent starts at).
         # This is so vision based policies can succeed since they cannot see the goal site if they are on top of it
 
-        reached_goal = robot_to_goal_dist < 0.35
+        reached_goal = robot_to_goal_dist < 0.45
         return {
             "success": reached_goal & ~is_fallen,
             "fail": is_fallen,
@@ -139,13 +144,20 @@ class QuadrupedReachEnv(BaseEnv):
         ang_vel_xy_l2 = (
             torch.square(self.agent.robot.root_angular_velocity[:, :2])
         ).sum(axis=1)
+        qmat = rotation_conversions.quaternion_to_matrix(self.agent.robot.pose.q)
+        euler = rotation_conversions.matrix_to_euler_angles(qmat, "XYZ")
+        # print(euler, euler / torch.linalg.norm(euler, dim=1))
+        # flat_orientation_penalty = torch.linalg.norm(common.quat_diff_rad(self.agent.robot.pose.q, self.flat_orientation_q), dim=0)
+        flat_orientation_penalty = torch.linalg.norm(euler[:, :2], dim=1)
+        # print(flat_orientation_penalty)
         penalties = (
             lin_vel_z_l2 * -2
-            + ang_vel_xy_l2 * -0.05
+            + ang_vel_xy_l2 * -1
             + self._compute_undesired_contacts() * -1
+            + flat_orientation_penalty * -0.5
         )
         reward = 2 * reaching_reward + penalties
-        reward[info["fail"]] = -100
+        # reward[info["fail"]] = -100
         return reward
 
     def compute_normalized_dense_reward(

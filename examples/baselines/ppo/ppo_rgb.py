@@ -306,8 +306,8 @@ if __name__ == "__main__":
     envs = gym.make(args.env_id, num_envs=args.num_envs if not args.evaluate else 1, **env_kwargs)
 
     # rgbd obs mode returns a dict of data, we flatten it so there is just a rgbd key and state key
-    envs = FlattenRGBDObservationWrapper(envs, rgb_only=False)
-    eval_envs = FlattenRGBDObservationWrapper(eval_envs, rgb_only=False)
+    envs = FlattenRGBDObservationWrapper(envs)
+    eval_envs = FlattenRGBDObservationWrapper(eval_envs)
 
     if isinstance(envs.action_space, gym.spaces.Dict):
         envs = FlattenActionSpaceWrapper(envs)
