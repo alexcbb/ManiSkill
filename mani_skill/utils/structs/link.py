@@ -43,11 +43,17 @@ class Link(PhysxRigidBodyComponentStruct[physx.PhysxArticulationLinkComponent]):
     map from user-defined mesh groups (e.g. "handle" meshes for cabinets) to a list of trimesh.Trimesh objects corresponding to each physx link object managed here
     """
 
+    merged: bool = False
+    """whether this link is result of Link.merge or not"""
+
     def __str__(self):
         return f"<{self.name}: struct of type {self.__class__}; managing {self._num_objs} {self._objs[0].__class__} objects>"
 
     def __repr__(self):
         return self.__str__()
+
+    def __hash__(self):
+        return self.__maniskill_hash__
 
     @classmethod
     def create(
@@ -60,9 +66,11 @@ class Link(PhysxRigidBodyComponentStruct[physx.PhysxArticulationLinkComponent]):
             _objs=physx_links,
             scene=scene,
             _scene_idxs=scene_idxs,
-            _body_data_name="cuda_rigid_body_data"
-            if isinstance(scene.px, physx.PhysxGpuSystem)
-            else None,
+            _body_data_name=(
+                "cuda_rigid_body_data"
+                if isinstance(scene.px, physx.PhysxGpuSystem)
+                else None
+            ),
             _bodies=physx_links,
         )
 
@@ -111,6 +119,7 @@ class Link(PhysxRigidBodyComponentStruct[physx.PhysxArticulationLinkComponent]):
         # TODO (stao): akin to the joint merging above, we can also make a view of the articulations of each link. Is it necessary?
         merged_link.articulation = None
         merged_link.name = name
+        merged_link.merged = True
         return merged_link
 
     # -------------------------------------------------------------------------- #
@@ -174,12 +183,13 @@ class Link(PhysxRigidBodyComponentStruct[physx.PhysxArticulationLinkComponent]):
             bboxes.append(merged_mesh.bounding_box)
         return bboxes
 
-    def set_collision_group_bit(self, group: int, bit_idx: int, bit: int):
+    def set_collision_group_bit(self, group: int, bit_idx: int, bit: Union[int, bool]):
         """Set's a specific collision group bit for all collision shapes in all parallel actors"""
+        bit = int(bit)
         for body in self._bodies:
             for cs in body.get_collision_shapes():
-                cg = cs.collision_groups
-                cg[group] |= bit << bit_idx
+                cg = cs.get_collision_groups()
+                cg[group] = (cg[group] & ~(1 << bit_idx)) | (bit << bit_idx)
                 cs.set_collision_groups(cg)
 
     # -------------------------------------------------------------------------- #
