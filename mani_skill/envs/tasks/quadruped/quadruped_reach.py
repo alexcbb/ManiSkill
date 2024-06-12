@@ -146,14 +146,15 @@ class QuadrupedReachEnv(BaseEnv):
         ).sum(axis=1)
         qmat = rotation_conversions.quaternion_to_matrix(self.agent.robot.pose.q)
         euler = rotation_conversions.matrix_to_euler_angles(qmat, "XYZ")
-        # print(euler, euler / torch.linalg.norm(euler, dim=1))
-        # flat_orientation_penalty = torch.linalg.norm(common.quat_diff_rad(self.agent.robot.pose.q, self.flat_orientation_q), dim=0)
         flat_orientation_penalty = torch.linalg.norm(euler[:, :2], dim=1)
-        # print(flat_orientation_penalty)
+        height_penalty = torch.linalg.norm(self.agent.robot.pose.p[:, 2:] - 0.41, dim=1)
+        height_penalty[self.agent.robot.pose.p[:, 2] > 0.41] = 0
+        # import ipdb;ipdb.set_trace()
         penalties = (
             lin_vel_z_l2 * -2
-            + ang_vel_xy_l2 * -1
+            + ang_vel_xy_l2 * -0.05
             + self._compute_undesired_contacts() * -1
+            + height_penalty * -0.5
             + flat_orientation_penalty * -0.5
         )
         reward = 2 * reaching_reward + penalties
