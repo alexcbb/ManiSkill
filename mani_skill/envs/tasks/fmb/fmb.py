@@ -17,6 +17,12 @@ from mani_skill.utils.scene_builder.table import TableSceneBuilder
 from mani_skill.utils.structs.pose import Pose
 from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
 
+ROBOT_BASE_P_TO_EDGE_DIST = 0.07
+BIN_AREA_TOP_X = (
+    -0.615 + 0.17 + ROBOT_BASE_P_TO_EDGE_DIST
+)  # authors measure from the base edge, not base center
+BIN_AREA_RIGHT_Y = 0.24
+
 
 @register_env("FMBAssembly1Easy-v1", max_episode_steps=500)
 class FMBAssembly1Env(BaseEnv):
@@ -55,8 +61,11 @@ class FMBAssembly1Env(BaseEnv):
 
     @property
     def _default_sensor_configs(self):
-        pose = sapien_utils.look_at(eye=[0.3, 0, 0.6], target=[-0.1, 0, 0.1])
-        return [CameraConfig("base_camera", pose, 128, 128, np.pi / 2, 0.01, 100)]
+        pose = sapien_utils.look_at(
+            eye=[BIN_AREA_TOP_X + 0.29, BIN_AREA_RIGHT_Y + 0.14, 0.25],
+            target=[BIN_AREA_TOP_X + 0.54 / 2 + 0.02, 0, 0],
+        )
+        return [CameraConfig("base_camera", pose, 640, 480, 1.01229, 0.01, 100)]
 
     @property
     def _default_human_render_camera_configs(self):
@@ -69,7 +78,19 @@ class FMBAssembly1Env(BaseEnv):
         )
         self.table_scene.build()
         builder = self.scene.create_actor_builder()
+        builder.add_box_visual(
+            half_size=[0.54 / 2, 0.62 / 2, 0.001],
+            material=sapien.render.RenderMaterial(
+                base_color=[95 / 255, 95 / 255, 95 / 255, 1]
+            ),
+        )
 
+        builder.initial_pose = sapien.Pose(
+            p=[BIN_AREA_TOP_X + 0.54 / 2, BIN_AREA_RIGHT_Y - 0.62 / 2, 0]
+        )
+        self.surface = builder.build_static("surface")
+
+        builder = self.scene.create_actor_builder()
         rot_correction = sapien.Pose(q=euler2quat(np.pi / 2, 0, 0))
         builder.add_nonconvex_collision_from_file(
             osp.join(osp.dirname(__file__), "assets/board_1.glb"), rot_correction
@@ -124,7 +145,9 @@ class FMBAssembly1Env(BaseEnv):
             osp.join(osp.dirname(__file__), "assets/reorienting_fixture.glb"),
             rot_correction,
         )
-        self.reorienting_fixture = builder.build_kinematic("reorienting_fixture")
+        # FMB paper might have a typo in their schematics.
+        builder.initial_pose = sapien.Pose(p=[BIN_AREA_TOP_X + 0.38, 0.038095, 0.0285])
+        self.reorienting_fixture = builder.build_static("reorienting_fixture")
 
         builder = self.scene.create_actor_builder()
         self.bridge_grasp = builder.build_kinematic(name="bridge_grasp")
@@ -133,9 +156,7 @@ class FMBAssembly1Env(BaseEnv):
         with torch.device(self.device):
             b = len(env_idx)
             self.table_scene.initialize(env_idx)
-            offset_pose = sapien.Pose(
-                p=[0.02, -0.115, 0], q=euler2quat(0, 0, np.pi / 2)
-            )
+            offset_pose = sapien.Pose(p=[-0.25, -0.3, 0], q=euler2quat(0, 0, np.pi / 2))
             self.board.set_pose(
                 sapien.Pose(p=np.array([0.115, 0.115, 0.034444])) * offset_pose
             )
@@ -152,17 +173,10 @@ class FMBAssembly1Env(BaseEnv):
                 Pose.create_from_pq(p=np.array([0.115, 0.115, 0.048667])) * offset_pose
             )
 
-            self.reorienting_fixture.set_pose(
-                sapien.Pose(p=np.array([0.05, 0.25, 0.0285]))
-            )
-
-            # self.bridge.set_pose(
-
-            # )
             xyz = torch.zeros((b, 3))
             xyz[:, :2] = randomization.uniform(-0.025, 0.025, size=(b, 2))
             bridge_pose = Pose.create_from_pq(
-                p=torch.tensor([-0.13, 0.23, 0.048667 / 2]) + xyz,
+                p=torch.tensor([-0.2, 0.1, 0.048667 / 2]) + xyz,
                 q=euler2quat(0, -np.pi / 2, np.pi / 2),
             )
 
