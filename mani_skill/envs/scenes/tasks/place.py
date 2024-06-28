@@ -371,14 +371,6 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
             success_rew = 3 * info["success"]
             reward += success_rew
 
-            # encourage arm and torso in "resting" orientation
-            arm_to_resting_diff = torch.norm(
-                self.agent.robot.qpos[..., 3:-2] - self.resting_qpos,
-                dim=1,
-            )
-            arm_resting_orientation_rew = 2 * (1 - torch.tanh(arm_to_resting_diff))
-            reward += arm_resting_orientation_rew
-
             # ---------------------------------------------------------------
             # colliisions
             step_no_col_rew = 3 * (
@@ -434,6 +426,10 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
                 obj_at_goal_maybe_dropped_reward += rest_rew
 
                 # additional encourage arm and torso in "resting" orientation
+                arm_to_resting_diff = torch.norm(
+                    self.agent.robot.qpos[..., 3:-2] - self.resting_qpos,
+                    dim=1,
+                )
                 more_arm_resting_orientation_rew = 2 * (
                     1 - torch.tanh(arm_to_resting_diff[obj_at_goal_maybe_dropped])
                 )
@@ -466,7 +462,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        max_reward = 32.0
+        max_reward = 30.0
         return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
 
     # -------------------------------------------------------------------------------------------------
