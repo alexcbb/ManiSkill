@@ -359,11 +359,6 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
 
             # ---------------------------------------------------
 
-            # penalty for ee jittering too much
-            ee_vel = self.agent.tcp.linear_velocity
-            ee_still_rew = 1 - torch.tanh(torch.norm(ee_vel, dim=1) / 5)
-            reward += ee_still_rew
-
             # penalty for object moving too much when not grasped
             obj_vel = torch.norm(
                 self.subtask_objs[0].linear_velocity, dim=1
