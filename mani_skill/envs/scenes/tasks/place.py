@@ -417,7 +417,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
 
             if torch.any(obj_not_at_goal):
                 # ee holding object
-                obj_not_at_goal_reward += 2 * info["is_grasped"][obj_not_at_goal]
+                obj_not_at_goal_reward += 10 * info["is_grasped"][obj_not_at_goal]
 
                 # ee and tcp close to goal
                 place_rew = 5 * (
@@ -475,7 +475,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        max_reward = 34.0
+        max_reward = 44.0
         return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
 
     # -------------------------------------------------------------------------------------------------
