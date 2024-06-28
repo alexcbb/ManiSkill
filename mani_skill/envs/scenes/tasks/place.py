@@ -364,10 +364,11 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
             ee_still_rew = 1 - torch.tanh(torch.norm(ee_vel, dim=1) / 5)
             reward += ee_still_rew
 
-            # penalty for object moving too much
+            # penalty for object moving too much when not grasped
             obj_vel = torch.norm(
                 self.subtask_objs[0].linear_velocity, dim=1
             ) + torch.norm(self.subtask_objs[0].angular_velocity, dim=1)
+            obj_vel[info["is_grasped"]] = 0
             obj_still_rew = 3 * (1 - torch.tanh(obj_vel / 5))
             reward += obj_still_rew
 
