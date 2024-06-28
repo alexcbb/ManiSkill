@@ -383,11 +383,6 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
             arm_resting_orientation_rew = 2 * (1 - torch.tanh(arm_to_resting_diff))
             reward += arm_resting_orientation_rew
 
-            # penalty for torso moving up and down too much
-            tqvel_z = self.agent.robot.qvel[..., 3]
-            torso_not_moving_rew = 1 - torch.tanh(5 * torch.abs(tqvel_z))
-            reward += torso_not_moving_rew
-
             # ---------------------------------------------------------------
             # colliisions
             step_no_col_rew = 3 * (
@@ -475,7 +470,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        max_reward = 44.0
+        max_reward = 43.0
         return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
 
     # -------------------------------------------------------------------------------------------------
