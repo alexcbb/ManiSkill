@@ -434,7 +434,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
 
             if torch.any(obj_at_goal_maybe_dropped):
                 # add prev step max rew
-                obj_at_goal_maybe_dropped_reward += 7
+                obj_at_goal_maybe_dropped_reward += 15
 
                 # rest reward
                 rest_rew = 5 * (
