@@ -369,7 +369,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
                 self.subtask_objs[0].linear_velocity, dim=1
             ) + torch.norm(self.subtask_objs[0].angular_velocity, dim=1)
             obj_vel[info["is_grasped"]] = 0
-            obj_still_rew = 3 * (1 - torch.tanh(obj_vel / 5))
+            obj_still_rew = 6 * (1 - torch.tanh(obj_vel / 5))
             reward += obj_still_rew
 
             # success reward
@@ -471,7 +471,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        max_reward = 33.0
+        max_reward = 36.0
         return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
 
     # -------------------------------------------------------------------------------------------------
