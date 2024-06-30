@@ -178,7 +178,6 @@ class SequentialTaskEnv(SceneManipulationEnv):
                             p=subtask.goal_rectangle_probs,
                         )
                     )
-                    grcs[..., 2] += self.place_cfg.obj_goal_thresh * 2 / 3
                     Bs.append(grcs[1])
                     BCs.append(grcs[2] - grcs[1])
                     BAs.append(grcs[0] - grcs[1])
