@@ -433,7 +433,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
                 obj_at_goal_maybe_dropped_reward += 7
 
                 obj_at_goal_maybe_dropped_reward += (
-                    2 * ~info["is_grasped"][obj_not_at_goal]
+                    2 * ~info["is_grasped"][obj_at_goal_maybe_dropped]
                 )
 
                 # rest reward
