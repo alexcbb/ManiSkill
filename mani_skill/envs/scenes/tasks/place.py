@@ -373,7 +373,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
             reward += obj_still_rew
 
             # success reward
-            success_rew = 3 * info["success"]
+            success_rew = 6 * info["success"]
             reward += success_rew
 
             # encourage arm and torso in "resting" orientation
@@ -471,7 +471,7 @@ class PlaceSubtaskTrainEnv(SubtaskTrainEnv):
     def compute_normalized_dense_reward(
         self, obs: Any, action: torch.Tensor, info: Dict
     ):
-        max_reward = 33.0
+        max_reward = 36.0
         return self.compute_dense_reward(obs=obs, action=action, info=info) / max_reward
 
     # -------------------------------------------------------------------------------------------------
