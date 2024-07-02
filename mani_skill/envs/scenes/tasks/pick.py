@@ -89,7 +89,7 @@ class PickSubtaskTrainEnv(SubtaskTrainEnv):
                     close_positions = positions[
                         torch.norm(positions - center, dim=1) <= self.spawn_loc_radius
                     ]
-                    if len(positions) < 1:
+                    if len(close_positions) < 1:
                         close_positions = positions[
                             torch.norm(positions - center, dim=1) <= 2
                         ]
